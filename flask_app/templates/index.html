@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Sentiment Analysis</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #0f172a;
+            background: radial-gradient(circle at 15% 15%, #dbeafe 0, transparent 45%),
+                        radial-gradient(circle at 85% 85%, #ede9fe 0, transparent 45%),
+                        #f8fafc;
+        }
+        .card {
+            width: min(100%, 540px);
+            padding: 40px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, .12);
+        }
+        .eyebrow {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: #6366f1;
+        }
+        h1 { margin: 0 0 12px; font-size: 30px; line-height: 1.2; }
+        .lede { margin: 0 0 28px; color: #64748b; line-height: 1.6; }
+        .drop-zone {
+            display: grid;
+            place-items: center;
+            gap: 14px;
+            padding: 32px 20px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 18px;
+            background: #f8fafc;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .2s, background .2s, transform .2s;
+        }
+        .drop-zone:hover, .drop-zone:focus-within, .drop-zone.dragging {
+            border-color: #6366f1;
+            background: #eef2ff;
+            transform: translateY(-2px);
+        }
+        .drop-zone input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
+        .drop-zone svg { width: 44px; height: 44px; color: #6366f1; }
+        .drop-zone strong { display: block; font-size: 15px; }
+        .drop-zone small { display: block; margin-top: 4px; color: #94a3b8; font-size: 13px; }
+        #preview { width: 100%; max-height: 220px; object-fit: contain; border-radius: 12px; }
+        #file-name { color: #475569; font-size: 13px; word-break: break-all; }
+        .submit {
+            width: 100%;
+            margin-top: 24px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .2s, transform .2s;
+        }
+        .submit:hover { transform: translateY(-1px); }
+        .submit:disabled { opacity: .6; cursor: wait; transform: none; }
+        .hint { margin: 14px 0 0; text-align: center; color: #94a3b8; font-size: 12px; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <p class="eyebrow">Image Sentiment Analysis</p>
+        <h1>What mood does this image carry?</h1>
+        <p class="lede">Upload an image and the model will classify its sentiment as positive or negative.</p>
+
+        <form id="upload-form" action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data">
+            <label class="drop-zone" id="drop-zone" for="image">
+                <svg id="placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                    <circle cx="8.5" cy="9.5" r="1.5"></circle>
+                    <path d="m4 17 5-5 4 4 3-3 4 4"></path>
+                    <path d="M12 2v6m-3-3 3 3 3-3"></path>
+                </svg>
+                <img id="preview" alt="Selected image preview" hidden>
+                <span>
+                    <strong id="drop-title">Drop an image here or click to browse</strong>
+                    <small id="file-name">JPG, PNG or other image formats</small>
+                </span>
+                <input type="file" name="image" id="image" accept="image/*" required>
+            </label>
+            <button class="submit" id="submit-btn" type="submit">Analyze image</button>
+            <p class="hint">Your image is processed locally by the VGG19-based model.</p>
+        </form>
+    </main>
+
+    <script>
+        const input = document.getElementById('image');
+        const zone = document.getElementById('drop-zone');
+        const preview = document.getElementById('preview');
+        const placeholder = document.getElementById('placeholder');
+        const fileName = document.getElementById('file-name');
+        const dropTitle = document.getElementById('drop-title');
+        const form = document.getElementById('upload-form');
+        const button = document.getElementById('submit-btn');
+
+        function showFile(file) {
+            if (!file) return;
+            fileName.textContent = file.name;
+            dropTitle.textContent = 'Ready to analyze';
+            if (file.type.startsWith('image/')) {
+                preview.src = URL.createObjectURL(file);
+                preview.hidden = false;
+                placeholder.hidden = true;
+            }
+        }
+
+        input.addEventListener('change', () => showFile(input.files[0]));
+        ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, event => {
+            event.preventDefault();
+            zone.classList.add('dragging');
+        }));
+        ['dragleave', 'drop'].forEach(type => zone.addEventListener(type, event => {
+            event.preventDefault();
+            zone.classList.remove('dragging');
+        }));
+        zone.addEventListener('drop', event => {
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                input.files = event.dataTransfer.files;
+                showFile(file);
+            }
+        });
+        form.addEventListener('submit', () => {
+            button.disabled = true;
+            button.textContent = 'Analyzing image...';
+        });
+    </script>
+</body>
+</html>
